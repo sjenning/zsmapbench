@@ -1,7 +1,9 @@
 /*
  * zsmapbench.c
  *
- * This is a microbenchmark for zsmalloc allocation mapping
+ * Microbenchmark for zsmalloc allocation mapping
+ *
+ * This is x86 only because it uses rdtscll to get the number of elapsed cycles
 */
 
 #include <linux/module.h>
