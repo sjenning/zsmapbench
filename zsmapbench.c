@@ -13,7 +13,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 
-#include "../drivers/staging/zsmalloc/zsmalloc.h"
+#include "linux/zsmalloc.h"
 
 #if !defined(CONFIG_X86) && !defined(CONFIG_CPU_V6)
 #error "CPU not supported by zsmapbench"
@@ -82,7 +82,7 @@ static int zsmb_kthread(void *ptr)
 
 	pr_info("starting zsmb_kthread\n");
 
-	pool = zs_create_pool("zsmb", GFP_NOIO | __GFP_HIGHMEM);
+	pool = zs_create_pool(GFP_NOIO | __GFP_HIGHMEM);
 	if (!pool)
 		return -ENOMEM;
 
@@ -114,8 +114,7 @@ static int zsmb_kthread(void *ptr)
 #endif
 
 	while (unlikely(!kthread_should_stop())) {
-		/*buf = zs_map_object(pool, handles[spanned_index], ZS_MM_RW);*/
-		buf = zs_map_object(pool, handles[spanned_index]);
+		buf = zs_map_object(pool, handles[spanned_index], ZS_MM_RW);
 		if (unlikely(!buf)) {
 			pr_err("zs_map_object failed\n");
 			err = -EINVAL;
