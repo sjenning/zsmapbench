@@ -2,8 +2,6 @@
  * zsmapbench.c
  *
  * Microbenchmark for zsmalloc allocation mapping
- *
- * This is x86 only because it uses rdtscll to get the number of elapsed cycles
 */
 
 #include <linux/module.h>
@@ -15,56 +13,11 @@
 
 #include "linux/zsmalloc.h"
 
-#if !defined(CONFIG_X86) && !defined(CONFIG_CPU_V6)
-#error "CPU not supported by zsmapbench"
-#endif
-
-#ifdef CONFIG_CPU_V6
-
-#define ARMV6_PMCR_ENABLE		(1 << 0)
-#define ARMV6_PMCR_CCOUNT_RESET		(1 << 2)
-#define ARMV6_PMCR_CCOUNT_OVERFLOW	(1 << 10)
-
-static inline unsigned long
-armv6_pmcr_read(void)
-{
-	unsigned long val;
-	asm volatile("mrc   p15, 0, %0, c15, c12, 0" : "=r"(val));
-	return val;
-}
-
-static inline void
-armv6_pmcr_write(unsigned long val)
-{
-	asm volatile("mcr   p15, 0, %0, c15, c12, 0" : : "r"(val));
-}
-
-static inline unsigned long
-armv6_pmcr_ccnt_has_overflowed(unsigned long pmcr)
-{
-	return !(!(pmcr & ARMV6_PMCR_CCOUNT_OVERFLOW));
-}
-
-static inline unsigned long 
-armv6pmu_read_ccnt(void)
-{
-	unsigned long value = 0;
-	asm volatile("mrc   p15, 0, %0, c15, c12, 1" : "=r"(value));
-	return value;
-}
-
-static inline void
-armv6pmu_write_ccnt(u32 value)
-{
-	asm volatile("mcr   p15, 0, %0, c15, c12, 1" : : "r"(value));
-}
-
-#endif /* CONFIG_CPU_V6 */
-
 static int zsmb_kthread(void *ptr)
 {
 	struct zs_pool *pool;
-	unsigned long *handles, start, end, dt, completed = 0;
+	unsigned long *handles, completed = 0;
+	cycles_t start, end, dt;
 	int i, err;
 	char *buf;
 	/*
@@ -76,9 +29,6 @@ static int zsmb_kthread(void *ptr)
 	int size = 1632;
 	int handles_nr = 3;
 	int spanned_index = handles_nr - 1;
-#ifdef CONFIG_CPU_V6
-	unsigned long pmcr;
-#endif
 
 	pr_info("starting zsmb_kthread\n");
 
@@ -103,15 +53,7 @@ static int zsmb_kthread(void *ptr)
 		}
 	}
 
-#ifdef CONFIG_CPU_V6
-	pmcr = armv6_pmcr_read();
-	pmcr |= ARMV6_PMCR_ENABLE | ARMV6_PMCR_CCOUNT_RESET;
-	armv6_pmcr_write(pmcr);
-	armv6pmu_write_ccnt(0);
-	start = 0;
-#else
-	rdtscll(start);
-#endif
+	start = get_cycles();
 
 	while (unlikely(!kthread_should_stop())) {
 		buf = zs_map_object(pool, handles[spanned_index], ZS_MM_RW);
@@ -125,19 +67,12 @@ static int zsmb_kthread(void *ptr)
 		cond_resched();
 	}
 
-#ifdef CONFIG_CPU_V6
-	end = armv6pmu_read_ccnt();
-	pmcr = armv6_pmcr_read();
-	pmcr &= ~ARMV6_PMCR_ENABLE;
-	armv6_pmcr_write(pmcr);
-#else
-	rdtscll(end);
-#endif
+	end = get_cycles();
 
 	dt = end - start;
-	pr_info("%lu cycles\n",dt);
+	pr_info("%llu cycles\n",(unsigned long long)dt);
 	pr_info("%lu mappings\n",completed);
-	pr_info("%lu cycles/map\n",dt/completed);
+	pr_info("%llu cycles/map\n",(unsigned long long)dt/completed);
 
 	pr_info("stopping zsmb_kthread\n");
 	err = 0;
