@@ -82,7 +82,7 @@ static int zsmb_kthread(void *ptr)
 
 	pr_info("starting zsmb_kthread\n");
 
-	pool = zs_create_pool(GFP_NOIO | __GFP_HIGHMEM);
+	pool = zs_create_pool("zsmapbench", GFP_NOIO | __GFP_HIGHMEM);
 	if (!pool)
 		return -ENOMEM;
 
